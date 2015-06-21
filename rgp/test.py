@@ -24,11 +24,15 @@ g.save(e2)
 g.save(e3)
 g.save(e4)
 
-tr = g.traverse(n2)
-tr.outE().outV().has('name', ['mark', 'leanne'], 'in')
+# tr = g.traverse(n2)
+# tr.outE().outV().has('name', ['mark', 'leanne'], 'in')
 #print r.keys(), tr.outE(0, name='mark'), tr.bottom
-col = g.query(tr)
-print 'starting with', n2.data
-for i in col:
+# col = g.query(tr)
+
+for i in g.v():
     print 'result::', i, i.data
+
+
+for i in g.e():
+    print 'eeeresult::', i, i.data
     

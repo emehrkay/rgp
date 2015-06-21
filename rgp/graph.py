@@ -50,26 +50,25 @@ class Graph(_Collectionable):
     def next_id(self):
         return self.redis.incr(GRAPH_VARIABLE)
 
-    def v(self, id=None):
-        key = '%s:%s' % (GRAPH_VERTEX, id)
-        res = self.redis.hgetall(key)
-        col = Collection([res])
+    def v(self, _id=None):
+        self.traverse().v(_id)
         
-        return col
+        return self.query()
 
-    def e(self, id=None):
-        key = '%s:%s' % (GRAPH_EDGE, id)
-        res = self.redis.hgetall(key)
-        col = Collection([res])
+    def e(self, _id=None):
+        self.traverse().e(_id)
         
-        return col
+        return self.query()
 
-    def traverse(self, element):
+    def traverse(self, element=None):
         self._traversal = Traversal(element)
 
         return self._traversal
 
-    def query(self, traversal):
+    def query(self, traversal=None):
+        if not traversal:
+            traversal = self._traversal
+
         return traversal.start(self)
 
     def _add_edge(self, node_id, edge_id, direction='in'):
@@ -336,6 +335,42 @@ class Token(object):
             return field != value
         elif comparsion == 'in':
             return field in value
+
+
+class GetVertex(Token):
+    _operator = 'v'
+
+    def __call__(self, _id=None):
+        if _id:
+            key = '%s:%s' % (GRAPH_VERTEX, _id)
+            data = [self.graph.redis.hgetall(key)]
+        else:
+            key = '%s:*' % GRAPH_VERTEX
+            keys = self.graph.redis.keys(key)
+            data = []
+
+            for k in keys:
+                data.append(self.graph.redis.hgetall(k))
+
+        return Collection(data)
+
+
+class GetEdge(Token):
+    _operator = 'e'
+
+    def __call__(self, _id=None):
+        if _id:
+            key = '%s:%s' % (GRAPH_EDGE, _id)
+            data = [self.graph.redis.hgetall(key)]
+        else:
+            key = '%s:*' % GRAPH_EDGE
+            keys = self.graph.redis.keys(key)
+            data = []
+
+            for k in keys:
+                data.append(self.graph.redis.hgetall(k))
+
+        return Collection(data)
 
 
 class Has(Token):
