@@ -35,7 +35,7 @@ g.save(e6)
 # tr.outE().outV().has('name', ['mark', 'leanne'], 'in')
 #print r.keys(), tr.outE(0, name='mark'), tr.bottom
 # col = g.query(tr)
-g.traverse(n2).outV().has('name', 'mark').outE().outV()
+g.traverse(n2).alias('t').outV().alias('x').has('name', 'mark').outE().outV().back('x').back('t')
 for i in g.query():
     print 'result::', i, i.data
 

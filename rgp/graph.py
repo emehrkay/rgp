@@ -301,8 +301,9 @@ class Traversal(object):
                 token(*token._args, **token._kwargs)
                 aliases[token.name] = token
             elif isinstance(token, Back):
+                token(*token._args, **token._kwargs)
+
                 if token.name in aliases:
-                    token(*token._args, **token._kwargs)
                     collection = aliases[token.name].collection
                 else:
                     msg = """There was no no alias registered with %s""" % token.name
