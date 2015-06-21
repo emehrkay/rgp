@@ -198,11 +198,15 @@ class Edge(Node):
     def outv_key(self):
         return '%s:%s' % (GRAPH_VERTEX, self[GRAPH_EDGE_OUT])
 
+
 class Collection(object):
 
     def __init__(self, data=None):
         self._data = data if data else []
         self._elements = {}
+
+    def __len__(self):
+        return len(self._data)
 
     def __call__(self, *args):
         return Traversal(self)
@@ -426,9 +430,6 @@ class Map(Token):
         return Collecton(data)
 
 
-#TODO: these methods need to check the node type
-# if you're doing outE on an edge, it should first gather the outV and then the outE from that collection
-# Same is true for doing outV on n vertex
 class OutE(Token):
     _operator = 'outE'
 
@@ -436,10 +437,14 @@ class OutE(Token):
         data = []
 
         for i, node in enumerate(self.collection):
-            edges = self.graph.redis.smembers(node.oute_key)
+            if isinstance(node, Edge):
+                self.graph.traverse(node).outV()
+                data.extend(self.graph.query().data)
+            else:
+                edges = self.graph.redis.smembers(node.oute_key)
             
-            for d in edges:
-                data.extend(list(self.graph.e(d).data))
+                for d in edges:
+                    data.extend(list(self.graph.e(d).data))
 
         return Collection(data)
 
@@ -451,10 +456,14 @@ class InE(Token):
         data = []
 
         for i, node in enumerate(self.collection):
-            edges = self.graph.redis.smembers(node.ine_key)
+            if isinstance(node, Edge):
+                self.graph.traverse(node).inV()
+                data.extend(self.graph.query().data)
+            else:
+                edges = self.graph.redis.smembers(node.ine_key)
             
-            for d in edges:
-                data.extend(list(self.graph.e(d).data))
+                for d in edges:
+                    data.extend(list(self.graph.e(d).data))
 
         return Collection(data)
 
@@ -475,8 +484,14 @@ class BothE(Token):
             return data
 
         for i, node in enumerate(self.collection):
-            data.extend(get_edge(node.ine_key))
-            data.extend(get_edge(node.oute_key))
+            if isinstance(node, Edge):
+                self.graph.traverse(node).inV()
+                data.extend(self.graph.query().data)
+                self.graph.traverse(node).outV()
+                data.extend(self.graph.query().data)
+            else:
+                data.extend(get_edge(node.ine_key))
+                data.extend(get_edge(node.oute_key))
 
         return Collection(data)
 
@@ -488,9 +503,13 @@ class OutV(Token):
         data = []
 
         for i, node in enumerate(self.collection):
-            inv = self.graph.redis.hgetall(node.outv_key)
+            if isinstance(node, Vertex):
+                self.graph.traverse(node).outE()
+                data = self.graph.query().data
+            else:
+                inv = self.graph.redis.hgetall(node.outv_key)
 
-            data.append(inv)
+                data.append(inv)
 
         return Collection(data)
 
@@ -502,9 +521,13 @@ class InV(Token):
         data = []
 
         for i, node in enumerate(self.collection):
-            inv = self.graph.redis.hgetall(node.inv_key)
+            if isinstance(node, Vertex):
+                self.graph.traverse(node).inE()
+                data = self.graph.query().data
+            else:
+                inv = self.graph.redis.hgetall(node.inv_key)
 
-            data.append(inv)
+                data.append(inv)
 
         return Collection(data)
 
@@ -516,8 +539,14 @@ class BothV(Token):
         data = []
 
         for i, node in enumerate(self.collection):
-            data.extend(self.graph.redis.hgetall(node.inv_key))
-            data.extend(self.graph.redis.hgetall(node.outv_key))
+            if isinstance(node, Edge):
+                self.graph.traverse(node).inE()
+                data.extend(self.graph.query().data)
+                self.graph.traverse(node).inV()
+                data = self.graph.query().data
+            else:
+                data.extend(self.graph.redis.hgetall(node.inv_key))
+                data.extend(self.graph.redis.hgetall(node.outv_key))
 
         return Collection(data)
 

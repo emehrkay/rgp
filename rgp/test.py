@@ -28,11 +28,8 @@ g.save(e4)
 # tr.outE().outV().has('name', ['mark', 'leanne'], 'in')
 #print r.keys(), tr.outE(0, name='mark'), tr.bottom
 # col = g.query(tr)
-
-for i in g.v():
+g.traverse(n2).outV()
+for i in g.query():
     print 'result::', i, i.data
 
-
-for i in g.e():
-    print 'eeeresult::', i, i.data
     
