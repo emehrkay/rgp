@@ -78,40 +78,46 @@ class Graph(_Collectionable):
     def _add_edge(self, node_id, edge_id, direction='in'):
         key = GRAPH_VERTEX_IN if direction == 'in' else GRAPH_VERTEX_OUT
         key = '%s:%s' % (key, node_id)
+        print '>>>', key, edge_id
         return self.redis.sadd(key, edge_id)
 
     def save(self, element):
         try:
-            _id = element.id if element.id else self.next_id()
-            node = isinstance(element, Vertex)
-            key = GRAPH_VERTEX if node else GRAPH_EDGE
-            key = '%s:%s' % (key, _id)
-            data = element.redis_data
-            data[GRAPH_ELEMENT_TYPE] = 'node' if node else 'edge'
+            if isinstance(element, Collection):
+                map(self.save, element)
+                
+                return element
+            else:
+                _id = element.id if element.id else self.next_id()
+                node = isinstance(element, Vertex)
+                key = GRAPH_VERTEX if node else GRAPH_EDGE
+                key = '%s:%s' % (key, _id)
+                data = element.redis_data
+                data[GRAPH_ELEMENT_TYPE] = 'node' if node else 'edge'
 
-            if not node:
-                out_v = element._out_v
-                in_v = element._in_v
+                if not node:
+                    out_v = element._out_v
+                    in_v = element._in_v
 
-                if not out_v or not in_v:
-                    msg = """both the out and in nodes must be set
-                            before saving an edge"""
-                    raise RGPEdgeException(msg)
+                    if not out_v or not in_v:
+                        msg = """both the out and in nodes must be set
+                                before saving an edge"""
+                        raise RGPEdgeException(msg)
 
-                out_v_id = self.save(out_v)
-                in_v_id = self.save(in_v)
-                data[GRAPH_EDGE_OUT] = out_v_id
-                data[GRAPH_EDGE_IN] = in_v_id
+                    out_v_id = self.save(out_v)
+                    in_v_id = self.save(in_v)
+                    data[GRAPH_EDGE_OUT] = out_v_id
+                    data[GRAPH_EDGE_IN] = in_v_id
 
-                self._add_edge(out_v_id, _id, 'in')
-                self._add_edge(in_v_id, _id, 'out')
+                    self._add_edge(out_v_id, _id, 'in')
+                    self._add_edge(in_v_id, _id, 'out')
 
-            element.id = _id
+                element.id = _id
 
-            self.redis.hmset(key, data)
-            memo(element)
+                self.redis.hmset(key, data)
+                memo(element)
 
-            return _id
+                return _id
         except Exception as e:
             raise e
 
@@ -230,6 +236,7 @@ class Collection(object):
                     kwargs['label'] = data[GRAPH_EDGE_LABEL]
 
                 element = getattr(THIS, etype)(**kwargs)
+                self[key] = element
             except Exception as e:
                 raise StopIteration()
 
@@ -245,6 +252,11 @@ class Collection(object):
     @property
     def data(self):
         return self._data
+
+    def append(self, element):
+        self[len(self._elements)] = element
+
+        return self
 
 
 class Traversal(object):
@@ -277,10 +289,10 @@ class Traversal(object):
     def __getitem__(self, val):
         if type(val) is not slice:
             val = slice(val, None, None)
+        
+        self.bottom._range = val
 
-        node = Range(self.collection)
-
-        return self.add_node(node)
+        return self
 
     def add_node(self, node):
         self.bottom.next = node
@@ -290,6 +302,7 @@ class Traversal(object):
 
     def start(self, graph):
         aliases = {}
+        collected = {}
         token = self.top.next
         collection = self.collection
         prev = token
@@ -308,6 +321,8 @@ class Traversal(object):
                 else:
                     msg = """There was no no alias registered with %s""" % token.name
                     raise RGPTokenAliasException(msg)
+            elif isinstance(token, Loop):
+                pass
 
             token.collection = collection
             token.graph = graph
@@ -420,6 +435,15 @@ class Alias(Token):
         return self.collection
 
 
+class Collect(Token):
+    _operator = 'collect'
+
+    def __call__(self, name):
+        self.name = name
+
+        return Collection(self.collection.data)
+
+
 class Back(Token):
     _operator = 'back'
 
@@ -429,8 +453,14 @@ class Back(Token):
         return self.collection
 
 
-class Range(Token):
-    _operator = '_doesnt/really/matter_'
+class Loop(Token):
+    _operator = 'loop'
+
+    def __call__(self, name, times):
+        self.name = name
+        self.times = times
+
+        return self.collection
 
 
 class Filter(Token):
@@ -462,11 +492,12 @@ class OutE(Token):
                 self.graph.traverse(node).outV()
                 data.extend(self.graph.query().data)
             else:
+                print 'out e key', node.oute_key
                 edges = self.graph.redis.smembers(node.oute_key)
-            
+
                 for d in edges:
                     data.extend(list(self.graph.e(d).data))
-
+                print '999', data
         return Collection(data)
 
 
@@ -527,7 +558,7 @@ class OutV(Token):
             if isinstance(node, Vertex):
                 trav = Traversal(node)
                 trav.outE()
-                data = [self.graph.redis.hgetall(n.outv_key) for n in self.graph.query(trav)]
+                data.extend([self.graph.redis.hgetall(n.outv_key) for n in self.graph.query(trav)])
             else:
                 inv = self.graph.redis.hgetall(node.outv_key)
 
@@ -546,7 +577,7 @@ class InV(Token):
             if isinstance(node, Vertex):
                 trav = Traversal(node)
                 trav.inE()
-                data = [self.graph.redis.hgetall(n.outv_key) for n in self.graph.query(trav)]
+                data.extend([self.graph.redis.hgetall(n.outv_key) for n in self.graph.query(trav)])
             else:
                 inv = self.graph.redis.hgetall(node.inv_key)
 
