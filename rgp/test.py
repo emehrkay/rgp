@@ -62,3 +62,7 @@ print 'with loop'
 for i in g.query():
     print 'result::', i, i.data
 
+g.traverse(n2).alias('x').outV().collect('x')
+print 'with collect'
+for i in g.query():
+    print 'result::', i, i.data

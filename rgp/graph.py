@@ -375,8 +375,9 @@ class Token(object):
             else:
                 parent = parent.previous
         
-        msg = """There was no no alias
-            registered with %s""" % token.name
+        msg = """There was no no alias with the name 
+            %s registered for use with %s""" %\
+            (name, self.__class__.__name__)
 
         raise RGPTokenAliasException(msg) 
 
@@ -452,8 +453,11 @@ class Collect(Token):
 
     def __call__(self, name):
         self.name = name
+        alias = self.get_alias(name)
+        data = self.collection.copy().data +\
+            alias.collection.copy().data
 
-        return Collection(self.collection.data)
+        return Collection(data)
 
 
 class Back(Token):
@@ -499,7 +503,7 @@ class Filter(Token):
     _operator = 'filter'
 
     def __call__(self, callback):
-        data = filter(callback, self.collection.data)
+        data = filter(callback, self.collection.copy().data)
 
         return Collecton(data)
 
@@ -508,7 +512,7 @@ class Map(Token):
     _operator = 'map'
 
     def __call__(self, callback):
-        data = map(callback, self.collection.data)
+        data = map(callback, self.collection.copy().data)
 
         return Collecton(data)
 
