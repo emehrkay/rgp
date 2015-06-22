@@ -62,7 +62,18 @@ print 'with loop'
 for i in g.query():
     print 'result::', i, i.data
 
-g.traverse(n2).alias('x').outV().collect('x')
+g.traverse(n2).alias('x').outV().loop('x', 2).has('name', 'sam').alias('y').collect('x', 'y')
 print 'with collect'
 for i in g.query():
     print 'result::', i, i.data
+
+
+print '==============='
+print n2.id
+print len(r.keys()), r.keys()
+
+g.delete(n2)
+
+print '==============='
+print len(r.keys()), r.keys()
+

@@ -11,6 +11,7 @@ GRAPH_VERTEX_IN = 'rgp:vertex_in'
 GRAPH_VERTEX_ID = '__id__'
 GRAPH_EDGE = 'rgp:edge'
 GRAPH_EDGE_ALL = 'rgp:edge_all'
+GRAPH_EDGE_REF = 'rgp:edge_ref'
 GRAPH_INDEX = 'rgp:index'
 GRAPH_ELEMENT_TYPE = '__type__'
 GRAPH_EDGE_LABEL = '__label__'
@@ -81,7 +82,9 @@ class Graph(_Collectionable):
     def _add_edge(self, node_id, edge_id, direction='in'):
         key = GRAPH_VERTEX_IN if direction == 'in' else GRAPH_VERTEX_OUT
         key = '%s:%s' % (key, node_id)
+        ref_key = '%s:%s' % (GRAPH_EDGE_REF, edge_id)
 
+        self.redis.sadd(ref_key, edge_id)
         return self.redis.sadd(key, edge_id)
 
     def save(self, element):
@@ -128,7 +131,36 @@ class Graph(_Collectionable):
 
     def delete(self, element):
         try:
-            element
+            if isinstance(element, Collection):
+                map(self.delete, element)
+            elif isinstance(element, Vertex):
+                # remove the vertex
+                # remove all of the edges connected
+                # remove the vertex's edge lists
+                self.redis.delete(element.key)
+
+                trav = Traversal(element).bothE()
+                edges = self.query(trav)
+                out_v = '%s:%s' % (GRAPH_VERTEX_OUT, element.id)
+                in_v = '%s:%s' % (GRAPH_VERTEX_IN, element.id)
+
+                self.redis.delete(out_v)
+                self.redis.delete(in_v)
+                self.delete(edges)
+            elif isinstance(element, Edge):
+                # remove the edge
+                # remove all references to the edge
+                self.redis.delete(element.key)
+
+                ref_key = '%s:%s' % (GRAPH_EDGE_REF, element.id)
+                refs = self.redis.smembers(ref_key)
+
+                for k in refs:
+                    n_key = '%s:%s' % (GRAPH_VERTEX_OUT, k)
+                    self.redis.srem(n_key, element.id)
+            else:
+                raise ValueError("""the element %s is not 
+                    a valid type""" % element)
         except Exception as e:
             raise e
 
@@ -451,11 +483,13 @@ class Alias(Token):
 class Collect(Token):
     _operator = 'collect'
 
-    def __call__(self, name):
-        self.name = name
-        alias = self.get_alias(name)
-        data = self.collection.copy().data +\
-            alias.collection.copy().data
+    def __call__(self, *names):
+        self.names = names
+        data = self.collection.copy().data
+        
+        for name in names:
+            alias = self.get_alias(name)
+            data.extend(alias.collection.copy().data)
 
         return Collection(data)
 
