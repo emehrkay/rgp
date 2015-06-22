@@ -6,9 +6,12 @@ RGP provides a simple directed graph database built on top of Redis and utilizes
 
 ## Installation
 
-
     pip install -e rgp
 
+## Requrements
+
+* Python 2.7 < 3 (3 support should be simple to do)
+* Redis
 
 ## Usage
 
