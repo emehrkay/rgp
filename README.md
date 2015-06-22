@@ -51,11 +51,11 @@ The `Graph` object is the main interface into the database.
 
 ##### Methods
 
-`e` -- Used to get either a edge by id or all edges in the graph. Returns a `Collection`
-`v` -- Used to get a specific vertex by id or all vertices in the graph. Returns a `Collection`
-`traverse` -- Used to create a `Traversal` object. This is registed with the `Graph` instance. Returns a `Traversal`
-`query` -- Used to execute a `Traversal` object. When called without an argument, the last registred traversal will be used.
-`save` -- Used to save a `Node`. If the `Node` is an `Edge`, it will save both `Vertex` objects associated with it. If the argument is a `Collection`, it will loop thorugh and save each `Node`. Retuns an id if the argument were a `Node` or `Collection` otherwise.
+* `e` -- Used to get either a edge by id or all edges in the graph. Returns a `Collection`
+* `v` -- Used to get a specific vertex by id or all vertices in the graph. Returns a `Collection`
+* `traverse` -- Used to create a `Traversal` object. This is registed with the `Graph` instance. Returns a `Traversal`
+* `query` -- Used to execute a `Traversal` object. When called without an argument, the last registred traversal will be used.
+* `save` -- Used to save a `Node`. If the `Node` is an `Edge`, it will save both `Vertex` objects associated with it. If the argument is a `Collection`, it will loop thorugh and save each `Node`. Retuns an id if the argument were a `Node` or `Collection` otherwise.
 
 ####Vertex
 
@@ -93,31 +93,19 @@ When it is time to run the traversal that was created, you simply call the `quer
 
 Tokens 
 
-`outE` --
- 
-`inE` --
-
-`bothE` --
-
-`outV` --
-
-`inV` --
-
-`bothV` --
-
-`has` --
-
-`alias` --
-
-`back` --
-
-`loop` --
-
-`map` -- 
-
-`filter` --
-
-`collect` --
+* `outE` --
+* `inE` --
+* `bothE` --
+* `outV` --
+* `inV` --
+* `bothV` --
+* `has` --
+* `alias` --
+* `back` --
+* `loop` --
+* `map` -- 
+* `filter` --
+* `collect` --
 
 #### Custom Tokens
 
