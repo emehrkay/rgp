@@ -78,7 +78,7 @@ class Graph(_Collectionable):
     def _add_edge(self, node_id, edge_id, direction='in'):
         key = GRAPH_VERTEX_IN if direction == 'in' else GRAPH_VERTEX_OUT
         key = '%s:%s' % (key, node_id)
-        print '>>>', key, edge_id
+
         return self.redis.sadd(key, edge_id)
 
     def save(self, element):
@@ -303,6 +303,7 @@ class Traversal(object):
     def start(self, graph):
         aliases = {}
         collected = {}
+        loops = {}
         token = self.top.next
         collection = self.collection
         prev = token
@@ -322,7 +323,23 @@ class Traversal(object):
                     msg = """There was no no alias registered with %s""" % token.name
                     raise RGPTokenAliasException(msg)
             elif isinstance(token, Loop):
-                pass
+                token(*token._args, **token._kwargs)
+                print 'looping', token, token.name, token.count
+                if token.name in aliases:
+                    if token.name not in loops:
+                        loops[token.name] = {
+                            'iter': 0,
+                            'count': token.count
+                        }
+
+                    loop = loops[token.name]['iter'] < loops[token.name]['count']
+
+                    if loop:
+                        loops[token.name]['iter'] += 1
+                        token = aliases[token.name]
+                else:
+                    msg = """There was no no alias registered with %s""" % token.name
+                    raise RGPTokenAliasException(msg)
 
             token.collection = collection
             token.graph = graph
@@ -456,9 +473,9 @@ class Back(Token):
 class Loop(Token):
     _operator = 'loop'
 
-    def __call__(self, name, times):
+    def __call__(self, name, count):
         self.name = name
-        self.times = times
+        self.count = count
 
         return self.collection
 
@@ -492,12 +509,11 @@ class OutE(Token):
                 self.graph.traverse(node).outV()
                 data.extend(self.graph.query().data)
             else:
-                print 'out e key', node.oute_key
                 edges = self.graph.redis.smembers(node.oute_key)
 
                 for d in edges:
                     data.extend(list(self.graph.e(d).data))
-                print '999', data
+
         return Collection(data)
 
 
