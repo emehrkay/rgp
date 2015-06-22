@@ -1,4 +1,5 @@
 import sys
+import copy
 
 
 THIS = sys.modules[__name__]
@@ -259,6 +260,11 @@ class Collection(object):
 
         return self
 
+    def copy(self):
+        data = copy.deepcopy(self.data)
+
+        return Collection(data)
+
 
 class Traversal(object):
 
@@ -303,54 +309,13 @@ class Traversal(object):
         return self
 
     def start(self, graph):
-        aliases = {}
-        collected = {}
-        loops = {}
         token = self.top.next
         collection = self.collection
-        prev = token
-        tokens = []
-        variable = ''
 
         while token:
-            if isinstance(token, Alias):
-                token(*token._args, **token._kwargs)
-                aliases[token.name] = token
-            elif isinstance(token, Back):
-                token(*token._args, **token._kwargs)
-
-                if token.name in aliases:
-                    collection = aliases[token.name].collection
-                else:
-                    msg = """There was no no alias
-                        registered with %s""" % token.name
-                    raise RGPTokenAliasException(msg)
-            elif isinstance(token, Loop):
-                token(*token._args, **token._kwargs)
-
-                if token.name in aliases:
-                    if token.name not in loops:
-                        loops[token.name] = {
-                            'iter': 0,
-                            'count': token.count,
-                        }
-
-                    loop = loops[token.name]['iter'] < \
-                        loops[token.name]['count']
-
-                    if loop:
-                        loops[token.name]['iter'] += 1
-                        token = aliases[token.name]
-                else:
-                    msg = """There was no no alias
-                        registered with %s""" % token.name
-                    raise RGPTokenAliasException(msg)
-
             token.collection = collection
             token.graph = graph
             collection = token(*token._args, **token._kwargs)
-            next = token.next
-            prev = token
             token = token.next
 
         return collection
@@ -395,6 +360,21 @@ class Token(object):
             return field != value
         elif comparsion == 'in':
             return field in value
+
+    def get_alias(self, name):
+        parent = self.previous
+        
+        while parent:
+            if isinstance(parent, Alias) and\
+                parent.name == name:
+                return parent
+            else:
+                parent = parent.previous
+        
+        msg = """There was no no alias
+            registered with %s""" % token.name
+
+        raise RGPTokenAliasException(msg) 
 
 
 class GetVertex(Token):
@@ -454,11 +434,13 @@ class Contains(Token):
 
 class Alias(Token):
     _operator = 'alias'
+    _aliases = {}
 
     def __call__(self, name):
         self.name = name
+        self._aliases[name] = self
 
-        return self.collection
+        return self.collection.copy()
 
 
 class Collect(Token):
@@ -475,16 +457,36 @@ class Back(Token):
 
     def __call__(self, name):
         self.name = name
-
-        return self.collection
+        alias = self.get_alias(name)
+        
+        return alias.collection.copy()
 
 
 class Loop(Token):
     _operator = 'loop'
+    _loops = {}
 
     def __call__(self, name, count):
         self.name = name
         self.count = count
+        alias = self.get_alias(name)
+
+        if name not in self._loops:
+            self._loops[name] = {
+                'iter': 0,
+                'count': count,
+                'original_next': self.next,
+            }
+
+        loop = self._loops[name]['iter'] < \
+            self._loops[name]['count']
+
+        if loop:
+            self._loops[name]['iter'] += 1
+            self.next = alias.next
+        else:
+            self.next =\
+                self._loops[name]['original_next']
 
         return self.collection
 
