@@ -12,6 +12,18 @@ RGP provides a simple directed graph database built on top of Redis and utilizes
 
 * Python 2.7 < 3 (3 support should be simple to do)
 * Redis
+* [redis-py](https://github.com/andymccurdy/redis-py)
+
+## Data Structure
+
+* 'rgp:index' -- <Integer> holds the node id. Incremented when a new `Node` is added
+* 'rgp:vertex' -- <HMSET> hold the hash data for a `Vertex`
+* 'rgp:vertex_all' -- <SET>
+* 'rgp:vertex_out' -- <SET>
+* 'rgp:vertex_in' -- <SET>
+* 'rgp:edge' -- <HMSET>
+* 'rgp:edge_all' -- <SET>
+* 'rgp:index' -- *NOT IMPLEMENTED YET*
 
 ## Usage
 
