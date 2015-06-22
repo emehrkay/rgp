@@ -5,10 +5,12 @@ import copy
 THIS = sys.modules[__name__]
 GRAPH_VARIABLE = 'rgp:index'
 GRAPH_VERTEX = 'rgp:vertex'
+GRAPH_VERTEX_ALL = 'rgp:vertex_all'
 GRAPH_VERTEX_OUT = 'rgp:vertex_out'
 GRAPH_VERTEX_IN = 'rgp:vertex_in'
 GRAPH_VERTEX_ID = '__id__'
 GRAPH_EDGE = 'rgp:edge'
+GRAPH_EDGE_ALL = 'rgp:edge_all'
 GRAPH_INDEX = 'rgp:index'
 GRAPH_ELEMENT_TYPE = '__type__'
 GRAPH_EDGE_LABEL = '__label__'
@@ -90,18 +92,18 @@ class Graph(_Collectionable):
                 return element
             else:
                 _id = element.id if element.id else self.next_id()
-                node = isinstance(element, Vertex)
-                key = GRAPH_VERTEX if node else GRAPH_EDGE
+                vertex = isinstance(element, Vertex)
+                key = GRAPH_VERTEX if vertex else GRAPH_EDGE
                 key = '%s:%s' % (key, _id)
                 data = element.redis_data
-                data[GRAPH_ELEMENT_TYPE] = 'node' if node else 'edge'
+                data[GRAPH_ELEMENT_TYPE] = 'vertex' if vertex else 'edge'
 
-                if not node:
+                if not vertex:
                     out_v = element._out_v
                     in_v = element._in_v
 
                     if not out_v or not in_v:
-                        msg = """both the out and in nodes must be set
+                        msg = """both the out and in vertices must be set
                                 before saving an edge"""
                         raise RGPEdgeException(msg)
 
@@ -115,7 +117,9 @@ class Graph(_Collectionable):
 
                 element.id = _id
 
+                all_key = GRAPH_VERTEX_ALL if vertex else GRAPH_EDGE_ALL
                 self.redis.hmset(key, data)
+                self.redis.sadd(all_key, _id)
                 memo(element)
 
                 return _id
@@ -231,7 +235,7 @@ class Collection(object):
                 kwargs = {
                     'data': data,
                 }
-                etype = 'Vertex' if data[GRAPH_ELEMENT_TYPE] == 'node'\
+                etype = 'Vertex' if data[GRAPH_ELEMENT_TYPE] == 'vertex'\
                     else 'Edge'
 
                 if etype is not 'Vertex':
@@ -289,9 +293,9 @@ class Traversal(object):
             msg = '%s does not sub-class Token' % name
             raise RGPTokenException(msg)
 
-        node = token(self.collection)
+        vertex = token(self.collection)
 
-        return self.add_node(node)
+        return self.add_node(vertex)
 
     def __getitem__(self, val):
         if type(val) is not slice:
@@ -385,12 +389,12 @@ class GetVertex(Token):
             key = '%s:%s' % (GRAPH_VERTEX, _id)
             data = [self.graph.redis.hgetall(key)]
         else:
-            key = '%s:*' % GRAPH_VERTEX
-            keys = self.graph.redis.keys(key)
+            keys = self.graph.redis.smembers(GRAPH_VERTEX_ALL)
             data = []
 
             for k in keys:
-                data.append(self.graph.redis.hgetall(k))
+                key = '%s:%s' % (GRAPH_VERTEX, k)
+                data.append(self.graph.redis.hgetall(key))
 
         return Collection(data)
 
@@ -403,12 +407,12 @@ class GetEdge(Token):
             key = '%s:%s' % (GRAPH_EDGE, _id)
             data = [self.graph.redis.hgetall(key)]
         else:
-            key = '%s:*' % GRAPH_EDGE
-            keys = self.graph.redis.keys(key)
+            keys = self.graph.redis.smembers(GRAPH_EDGE_ALL)
             data = []
 
             for k in keys:
-                data.append(self.graph.redis.hgetall(k))
+                key = '%s:%s' % (GRAPH_EDGE, k)
+                data.append(self.graph.redis.hgetall(key))
 
         return Collection(data)
 

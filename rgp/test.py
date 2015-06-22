@@ -49,7 +49,8 @@ g.save(col)
 #print r.keys(), tr.outE(0, name='mark'), tr.bottom
 # col = g.query(tr)
 #g.traverse(n2).alias('t').outV().alias('x').has('name', 'mark').outE().outV().back('x').back('t')
-
+print g.e().data
+print g.v().data
 g.traverse(n2).outV().outV().outV().has('name', 'sam', '==')
 print 'first'
 for i in g.query():
