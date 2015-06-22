@@ -50,7 +50,7 @@ g.save(col)
 # col = g.query(tr)
 #g.traverse(n2).alias('t').outV().alias('x').has('name', 'mark').outE().outV().back('x').back('t')
 
-g.traverse(n2).outV().outV().has('name', 'sade')
+g.traverse(n2).outV().outV().outV().has('name', 'sam')
 print 'first'
 for i in g.query():
     print 'result::', i, i.data

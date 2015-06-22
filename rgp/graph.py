@@ -56,12 +56,12 @@ class Graph(_Collectionable):
 
     def v(self, _id=None):
         self.traverse().v(_id)
-        
+
         return self.query()
 
     def e(self, _id=None):
         self.traverse().e(_id)
-        
+
         return self.query()
 
     def traverse(self, element=None):
@@ -85,7 +85,7 @@ class Graph(_Collectionable):
         try:
             if isinstance(element, Collection):
                 map(self.save, element)
-                
+
                 return element
             else:
                 _id = element.id if element.id else self.next_id()
@@ -197,7 +197,7 @@ class Edge(Node):
     def redis_data(self):
         data = self.data
         data[GRAPH_EDGE_LABEL] = self._label
-        
+
         return data
 
     @property
@@ -228,9 +228,10 @@ class Collection(object):
             try:
                 data = self._data[key]
                 kwargs = {
-                    'data': data
+                    'data': data,
                 }
-                etype = 'Vertex' if data[GRAPH_ELEMENT_TYPE] == 'node' else 'Edge'
+                etype = 'Vertex' if data[GRAPH_ELEMENT_TYPE] == 'node'\
+                    else 'Edge'
 
                 if etype is not 'Vertex':
                     kwargs['label'] = data[GRAPH_EDGE_LABEL]
@@ -277,7 +278,7 @@ class Traversal(object):
 
     def __getattr__(self, name):
         token = OPERATORS.get(name, None)
-        
+
         if not token:
             msg = '%s does not sub-class Token' % name
             raise RGPTokenException(msg)
@@ -289,7 +290,7 @@ class Traversal(object):
     def __getitem__(self, val):
         if type(val) is not slice:
             val = slice(val, None, None)
-        
+
         self.bottom._range = val
 
         return self
@@ -320,25 +321,28 @@ class Traversal(object):
                 if token.name in aliases:
                     collection = aliases[token.name].collection
                 else:
-                    msg = """There was no no alias registered with %s""" % token.name
+                    msg = """There was no no alias
+                        registered with %s""" % token.name
                     raise RGPTokenAliasException(msg)
             elif isinstance(token, Loop):
                 token(*token._args, **token._kwargs)
-                print 'looping', token, token.name, token.count
+
                 if token.name in aliases:
                     if token.name not in loops:
                         loops[token.name] = {
                             'iter': 0,
-                            'count': token.count
+                            'count': token.count,
                         }
 
-                    loop = loops[token.name]['iter'] < loops[token.name]['count']
+                    loop = loops[token.name]['iter'] < \
+                        loops[token.name]['count']
 
                     if loop:
                         loops[token.name]['iter'] += 1
                         token = aliases[token.name]
                 else:
-                    msg = """There was no no alias registered with %s""" % token.name
+                    msg = """There was no no alias
+                        registered with %s""" % token.name
                     raise RGPTokenAliasException(msg)
 
             token.collection = collection
@@ -350,7 +354,9 @@ class Traversal(object):
 
         return collection
 
+
 class _MetaToken(type):
+
     def __new__(cls, name, bases, attrs):
         cls = super(_MetaToken, cls).__new__(cls, name, bases, attrs)
         _operator = attrs.pop('_operator', None)
@@ -433,7 +439,8 @@ class Has(Token):
 
         if field and value:
             for i, node in enumerate(self.collection.data):
-                if field in node and self.compare(node[field], value, comparsion):
+                if field in node and\
+                    self.compare(node[field], value, comparsion):
                     data.append(node)
 
         return Collection(data)
@@ -529,7 +536,7 @@ class InE(Token):
                 data.extend(self.graph.query().data)
             else:
                 edges = self.graph.redis.smembers(node.ine_key)
-            
+
                 for d in edges:
                     data.extend(list(self.graph.e(d).data))
 
@@ -541,7 +548,7 @@ class BothE(Token):
 
     def __call__(self):
         data = []
-        
+
         def get_edge(key):
             data = []
             edges = self.graph.redis.smembers(key)
@@ -574,7 +581,8 @@ class OutV(Token):
             if isinstance(node, Vertex):
                 trav = Traversal(node)
                 trav.outE()
-                data.extend([self.graph.redis.hgetall(n.outv_key) for n in self.graph.query(trav)])
+                data.extend([self.graph.redis.hgetall(n.outv_key)\
+                    for n in self.graph.query(trav)])
             else:
                 inv = self.graph.redis.hgetall(node.outv_key)
 
@@ -593,7 +601,8 @@ class InV(Token):
             if isinstance(node, Vertex):
                 trav = Traversal(node)
                 trav.inE()
-                data.extend([self.graph.redis.hgetall(n.outv_key) for n in self.graph.query(trav)])
+                data.extend([self.graph.redis.hgetall(n.outv_key)\
+                    for n in self.graph.query(trav)])
             else:
                 inv = self.graph.redis.hgetall(node.inv_key)
 
@@ -612,10 +621,12 @@ class BothV(Token):
             if isinstance(node, Edge):
                 trav = Traversal(node)
                 trav.outE()
-                out_v = [self.graph.redis.hgetall(n.outv_key) for n in self.graph.query(trav)]
+                out_v = [self.graph.redis.hgetall(n.outv_key)\
+                    for n in self.graph.query(trav)]
                 trav = Traversal(node)
                 trav.inE()
-                in_v = [self.graph.redis.hgetall(n.outv_key) for n in self.graph.query(trav)]
+                in_v = [self.graph.redis.hgetall(n.outv_key)\
+                    for n in self.graph.query(trav)]
                 data.extend(out_v)
                 data.extend(in_v)
             else:
@@ -623,5 +634,3 @@ class BothV(Token):
                 data.extend(self.graph.redis.hgetall(node.outv_key))
 
         return Collection(data)
-
-    

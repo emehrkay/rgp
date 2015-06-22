@@ -9,11 +9,11 @@ import os
 from setuptools import setup
 
 setup(
-    name='graph',
+    name='rgp',
     version = '0.1.0',
     author="emehrkay@gmail.com",
-    author_email="",
-    url="",
+    author_email="emehrkay@gmail.com",
+    url="https://github.com/emehrkay/rgp",
     classifiers=[
         'License :: OSI Approved :: MIT License',
         'Development Status :: 3 - Alpha',
@@ -30,7 +30,7 @@ setup(
         'Operating System :: MacOS',
         'Operating System :: MacOS :: MacOS X',
     ],
-    packages=['redis_graph', 'test'],
+    packages=['rgp'],
     license="MIT",
     keywords='python redis graph database',
     description="Python graph database implemented on top of Redis.",
