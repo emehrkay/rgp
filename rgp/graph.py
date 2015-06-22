@@ -297,6 +297,7 @@ class Traversal(object):
 
     def add_node(self, node):
         self.bottom.next = node
+        node.previous = self.bottom
         self.bottom = node
 
         return self
@@ -377,6 +378,7 @@ class Token(object):
     def __init__(self, value=None):
         self.value = value
         self.collection = None
+        self.previous = None
         self.next = None
         self._args = ()
         self._kwargs = {}
