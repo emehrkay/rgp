@@ -8,15 +8,18 @@ GRAPH_VERTEX = 'rgp:vertex'
 GRAPH_VERTEX_ALL = 'rgp:vertex_all'
 GRAPH_VERTEX_OUT = 'rgp:vertex_out'
 GRAPH_VERTEX_IN = 'rgp:vertex_in'
-GRAPH_VERTEX_ID = '__id__'
+GRAPH_VERTEX_INDICES = 'rgp:vertex_indices'
 GRAPH_EDGE = 'rgp:edge'
 GRAPH_EDGE_ALL = 'rgp:edge_all'
 GRAPH_EDGE_REF = 'rgp:edge_ref'
+GRAPH_EDGE_INDICES = 'rgp:vertex_indices'
 GRAPH_INDEX = 'rgp:index'
-GRAPH_ELEMENT_TYPE = '__type__'
-GRAPH_EDGE_LABEL = '__label__'
-GRAPH_EDGE_OUT = '__out_v__'
-GRAPH_EDGE_IN = '__in_v__'
+GRAPH_PROPERTY_ID = '__id'
+GRAPH_PROPERTY_TYPE = '__type'
+GRAPH_PROPERTY_LABEL = '__label'
+GRAPH_PROPERTY_INDICES = '__indices'
+GRAPH_PROPERTY_OUT = '__out_v'
+GRAPH_PROPERTY_IN = '__in_v'
 OPERATORS = {}
 MEMO = {}
 
@@ -58,6 +61,15 @@ class Graph(_Collectionable):
     def next_id(self):
         return self.redis.incr(GRAPH_VARIABLE)
 
+    def get(self, _id):
+        for meth in ['v', 'e']:
+            col = getattr(self, meth)(_id)
+
+            if len(col):
+                return col
+
+        return Colleciton([])
+
     def v(self, _id=None):
         self.traverse().v(_id)
 
@@ -87,6 +99,22 @@ class Graph(_Collectionable):
         self.redis.sadd(ref_key, edge_id)
         return self.redis.sadd(key, edge_id)
 
+    def _index_node(self, node, indices=None):
+        if indices:
+            _id = node.id
+            _nkey = GRAPH_VERTEX_INDICES if isinstance(node, Vertex) else\
+                GRAPH_EDGE_INDICES
+            fields = [f.lower() for f in indices if node.data.get(f, None)]
+
+            for f in fields:
+                val = node.data.get(f)
+
+                if val:
+                    ikey = '%s:%s:%s' % (GRAPH_INDEX, f, val)
+                    self.redis.sadd(ikey, _id)
+
+        return self
+
     def save(self, element):
         try:
             if isinstance(element, Collection):
@@ -98,8 +126,9 @@ class Graph(_Collectionable):
                 vertex = isinstance(element, Vertex)
                 key = GRAPH_VERTEX if vertex else GRAPH_EDGE
                 key = '%s:%s' % (key, _id)
-                data = element.redis_data
-                data[GRAPH_ELEMENT_TYPE] = 'vertex' if vertex else 'edge'
+                data = element.data
+                indices = data.get(GRAPH_PROPERTY_INDICES, [])
+                data[GRAPH_PROPERTY_TYPE] = 'vertex' if vertex else 'edge'
 
                 if not vertex:
                     out_v = element._out_v
@@ -112,8 +141,8 @@ class Graph(_Collectionable):
 
                     out_v_id = self.save(out_v)
                     in_v_id = self.save(in_v)
-                    data[GRAPH_EDGE_OUT] = out_v_id
-                    data[GRAPH_EDGE_IN] = in_v_id
+                    data[GRAPH_PROPERTY_OUT] = out_v_id
+                    data[GRAPH_PROPERTY_IN] = in_v_id
 
                     self._add_edge(out_v_id, _id, 'in')
                     self._add_edge(in_v_id, _id, 'out')
@@ -123,6 +152,7 @@ class Graph(_Collectionable):
                 all_key = GRAPH_VERTEX_ALL if vertex else GRAPH_EDGE_ALL
                 self.redis.hmset(key, data)
                 self.redis.sadd(all_key, _id)
+                self._index_node(element, indices)
                 memo(element)
 
                 return _id
@@ -159,7 +189,7 @@ class Graph(_Collectionable):
                     n_key = '%s:%s' % (GRAPH_VERTEX_OUT, k)
                     self.redis.srem(n_key, element.id)
             else:
-                raise ValueError("""the element %s is not 
+                raise ValueError("""the element %s is not
                     a valid type""" % element)
         except Exception as e:
             raise e
@@ -167,13 +197,15 @@ class Graph(_Collectionable):
 
 class Node(object):
 
-    def __init__(self, data=None, indices=None, dirty=True):
+    def __init__(self, data=None, indices=None):
         if data is None:
             data = {}
 
-        self._id = data['_id'] if '_id' in data else None
+        self._id = data[GRAPH_PROPERTY_ID] if\
+            GRAPH_PROPERTY_ID in data else None
         self._data = data
-        self._dirty = dirty
+        self._indices = indices if indices else\
+            data.get(GRAPH_PROPERTY_INDICES, [])
 
         memo(self)
 
@@ -193,32 +225,31 @@ class Node(object):
     @id.setter
     def id(self, _id):
         self._id = _id
-        self.data[GRAPH_VERTEX_ID] = _id
+        self.data[GRAPH_PROPERTY_ID] = _id
 
     @property
     def data(self):
-        return self._data
+        data = self._data
+        data[GRAPH_PROPERTY_INDICES] = self._indices
 
-    @property
-    def redis_data(self):
-        return self.data
+        return data
 
     @property
     def key(self):
         _type = GRAPH_EDGE if isinstance(self, Edge) else GRAPH_VERTEX
 
-        return '%s:%s' % (_type, self[GRAPH_VERTEX_ID])
+        return '%s:%s' % (_type, self[GRAPH_PROPERTY_ID])
 
 
 class Vertex(Node):
 
     @property
     def oute_key(self):
-        return '%s:%s' % (GRAPH_VERTEX_OUT, self[GRAPH_VERTEX_ID])
+        return '%s:%s' % (GRAPH_VERTEX_OUT, self[GRAPH_PROPERTY_ID])
 
     @property
     def ine_key(self):
-        return '%s:%s' % (GRAPH_VERTEX_IN, self[GRAPH_VERTEX_ID])
+        return '%s:%s' % (GRAPH_VERTEX_IN, self[GRAPH_PROPERTY_ID])
 
 
 class Edge(Node):
@@ -231,19 +262,19 @@ class Edge(Node):
         self._label = label
 
     @property
-    def redis_data(self):
-        data = self.data
-        data[GRAPH_EDGE_LABEL] = self._label
+    def data(self):
+        data = super(Edge, self).data
+        data[GRAPH_PROPERTY_LABEL] = self._label
 
         return data
 
     @property
     def inv_key(self):
-        return '%s:%s' % (GRAPH_VERTEX, self[GRAPH_EDGE_IN])
+        return '%s:%s' % (GRAPH_VERTEX, self[GRAPH_PROPERTY_IN])
 
     @property
     def outv_key(self):
-        return '%s:%s' % (GRAPH_VERTEX, self[GRAPH_EDGE_OUT])
+        return '%s:%s' % (GRAPH_VERTEX, self[GRAPH_PROPERTY_OUT])
 
 
 class Collection(object):
@@ -267,11 +298,11 @@ class Collection(object):
                 kwargs = {
                     'data': data,
                 }
-                etype = 'Vertex' if data[GRAPH_ELEMENT_TYPE] == 'vertex'\
+                etype = 'Vertex' if data[GRAPH_PROPERTY_TYPE] == 'vertex'\
                     else 'Edge'
 
                 if etype is not 'Vertex':
-                    kwargs['label'] = data[GRAPH_EDGE_LABEL]
+                    kwargs['label'] = data[GRAPH_PROPERTY_LABEL]
 
                 element = getattr(THIS, etype)(**kwargs)
                 self[key] = element
@@ -383,7 +414,7 @@ class Token(object):
         self.next = None
         self._args = ()
         self._kwargs = {}
-        self._range = None
+        self._range = slice(0, None, 1)
 
     def __call__(self, *args):
         error = '%s does is not callable' % self.__name__
@@ -399,19 +430,48 @@ class Token(object):
 
     def get_alias(self, name):
         parent = self.previous
-        
+
         while parent:
             if isinstance(parent, Alias) and\
                 parent.name == name:
                 return parent
             else:
                 parent = parent.previous
-        
-        msg = """There was no no alias with the name 
+
+        msg = """There was no no alias with the name
             %s registered for use with %s""" %\
             (name, self.__class__.__name__)
 
-        raise RGPTokenAliasException(msg) 
+        raise RGPTokenAliasException(msg)
+
+
+class Get(Token):
+    _operator = 'get'
+
+    def _query(self, field, value, operator='=='):
+        return '%s:%s:%s' % (GRAPH_INDEX, field, value)
+
+    def __call__(self, field, value, operator='=='):
+        chained = [self]
+        token = self.next
+        data = []
+        k = []
+
+        while token and isinstance(token, Get):
+            chained.append(token)
+            token = token.next
+
+        self.next = chained[-1].next
+        self._range = chained[-1]._range
+
+        for token in chained:
+            k.append(self._query(*token._args, **token._kwargs))
+
+        results = list(self.graph.redis.sinter(k))
+        
+        [data.extend(self.graph.get(i).data) for i in results[self._range]]
+
+        return Collection(data)
 
 
 class GetVertex(Token):
@@ -486,7 +546,7 @@ class Collect(Token):
     def __call__(self, *names):
         self.names = names
         data = self.collection.copy().data
-        
+
         for name in names:
             alias = self.get_alias(name)
             data.extend(alias.collection.copy().data)
@@ -500,7 +560,7 @@ class Back(Token):
     def __call__(self, name):
         self.name = name
         alias = self.get_alias(name)
-        
+
         return alias.collection.copy()
 
 
